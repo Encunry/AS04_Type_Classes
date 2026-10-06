@@ -31,7 +31,7 @@ wordCount = fromListMerge . map (\w -> (w,1)) . cleanWords
 
 -- Takes the mapping function and uses the monoid instance of m to reduce the values.
 mapReduce ::  Monoid m => (a -> m) -> [a] -> m
-mapReduce f = error "TODO" 
+mapReduce f = mconcat . map f
 
 -- Main program, loads text files and calculates the word count on them.
 main :: IO ()

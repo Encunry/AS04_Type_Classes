@@ -5,10 +5,6 @@ module Map.TreeMap (
 import Data.List (intercalate)
 import Prelude hiding (lookup)
 
-todo :: a
-todo = error "TODO"
-
-
 -- The Map data type to map keys k to values v.
 data Map k v 
     = Empty 
@@ -18,7 +14,7 @@ data Map k v
 
 -- Creates an empty Map.
 empty :: Ord k => Map k v 
-empty = todo 
+empty = Empty
 
 
 -- Inserts the given key-value pair into the given Map.
@@ -26,13 +22,20 @@ empty = todo
 -- If there is already an entry with the given key, 
 -- the original value is replaced with the new value.
 insert :: (Ord k) => k -> v -> Map k v -> Map k v
-insert = todo 
+insert key val Empty = Branch empty key val empty
+insert key val (Branch smaller k v larger) | key < k = Branch (insert key val smaller) k v larger
+                                           | key > k = Branch smaller k v (insert key val larger)
+                                           | otherwise = Branch smaller key val larger
 
 
 -- Returns the value stored under the given key k.
 -- Spec: get k (insert k v m) == Just v
 lookup :: Ord k => k -> Map k v -> Maybe v
-lookup = todo
+lookup _   Empty = Nothing
+lookup key (Branch smaller k v larger) | key < k = lookup key smaller
+                                       | key > k = lookup key larger
+                                       | otherwise = Just v
+
 
 
 -- Inserts the given key-value pair into the given Map.
@@ -40,7 +43,11 @@ lookup = todo
 -- the Semigroup of the values is used to combine the existing value
 -- with the new value.
 insertOrMerge :: (Ord k, Semigroup v) => k -> v -> Map k v -> Map k v
-insertOrMerge = todo 
+insertOrMerge key val Empty = Branch empty key val empty
+insertOrMerge key val (Branch smaller k v larger) | key < k = Branch (insertOrMerge key val smaller) k v larger
+                                           | key > k = Branch smaller k v (insertOrMerge key val larger)
+                                           | otherwise = Branch smaller key (v <> val) larger
+  
 
 
 -- Creates a Map from a list of pairs.
@@ -48,18 +55,20 @@ insertOrMerge = todo
 -- When inserting mappings with the same key, the last one should overwrite previous ones.
 -- E.g. the Map created using `fromList [("a", 1), ("a", 2)]` should only contain `("a", 2)`.
 fromList :: Ord k => [(k,v)] -> Map k v
-fromList = todo
+fromList = foldl (flip (uncurry insert)) empty
+
 
 
 -- Creates a Map from a list of pairs.
 -- Use foldr and the insertOrMerge function to implement fromListMerge.
 fromListMerge :: (Ord k, Semigroup v) => [(k,v)] -> Map k v
-fromListMerge = todo
+fromListMerge = foldr (uncurry insertOrMerge) empty
 
 
 -- Returns the list of mappings.
 toList :: Map k v -> [(k,v)]
-toList = todo
+toList Empty = []
+toList (Branch smaller k v larger) = toList smaller ++ [(k, v)] ++ toList larger
 
 
 -- Produces a pretty formatted list of mappings:
@@ -69,7 +78,8 @@ toList = todo
 -- Hint: Using toList and Data.List.intercalate can simplify this task.
 instance (Show k, Show v) => Show (Map k v) where
   show :: Map k v -> String
-  show = todo
+  show Empty = []
+  show branch = intercalate "\n" $ map (\(k,v) -> show k ++ " -> " ++ show v) (toList branch)
 
 
 -- Two Maps can be combined if the keys are equatable
@@ -78,10 +88,10 @@ instance (Show k, Show v) => Show (Map k v) where
 -- Again, use the insertOrMerge function.
 instance (Ord k, Semigroup v) => Semigroup (Map k v) where
   (<>) :: (Ord k, Semigroup v) => Map k v -> Map k v -> Map k v
-  (<>) = todo
+  (<>) m1 m2 = foldr (uncurry insertOrMerge) m1 (toList m2)
 
 
 -- Creates an empty Map (easy). 
 instance (Ord k, Semigroup v) => Monoid (Map k v) where
   mempty :: (Ord k, Semigroup v) => Map k v
-  mempty = todo
+  mempty = empty

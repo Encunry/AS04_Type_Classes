@@ -6,19 +6,128 @@ import Lang.Imp
 import qualified Map.TreeMap as M
 
 evalSpec :: Spec
-evalSpec = 
-  describe "eval" $ do 
+evalSpec =
+  describe "eval" $ do
     it "eval (AConst 1) empty == 1" $
       eval (AConst 1) emptyState `shouldBe` (1 :: Integer)
 
+    it "eval (AVar \"x\") [x=5] == 5" $
+      eval (AVar "x") (M.fromList [("x", 5)]) `shouldBe` (5 :: Integer)
+
+    it "eval (APlus 2 3) == 5" $
+      eval (APlus (AConst 2) (AConst 3)) emptyState `shouldBe` (5 :: Integer)
+
+    it "eval (AMinus 2 5) == -3" $
+      eval (AMinus (AConst 2) (AConst 5)) emptyState `shouldBe` (-3 :: Integer)
+
+    it "eval (AMul 4 6) == 24" $
+      eval (AMul (AConst 4) (AConst 6)) emptyState `shouldBe` (24 :: Integer)
+
+    it "eval (ADiv 7 2) == 3" $
+      eval (ADiv (AConst 7) (AConst 2)) emptyState `shouldBe` (3 :: Integer)
+
+    it "eval (AMod 7 2) == 1" $
+      eval (AMod (AConst 7) (AConst 2)) emptyState `shouldBe` (1 :: Integer)
+
+    it "verschachtelt: (x + 2) * 3 mit x=4 == 18" $
+      eval (AMul (APlus (AVar "x") (AConst 2)) (AConst 3))
+           (M.fromList [("x", 4)])
+        `shouldBe` (18 :: Integer)
+
+    it "eval (REq 3 3) == True" $
+      eval (REq (AConst 3) (AConst 3)) emptyState `shouldBe` True
+
+    it "eval (REq 3 4) == False" $
+      eval (REq (AConst 3) (AConst 4)) emptyState `shouldBe` False
+
+    it "eval (RLt 3 4) == True" $
+      eval (RLt (AConst 3) (AConst 4)) emptyState `shouldBe` True
+
+    it "eval (RLt 4 4) == False" $
+      eval (RLt (AConst 4) (AConst 4)) emptyState `shouldBe` False
+
+    it "eval (BNot (REq 1 2)) == True" $
+      eval (BNot (REq (AConst 1) (AConst 2))) emptyState `shouldBe` True
+
+    it "eval (BAnd True False) == False" $
+      eval (BAnd (RLt (AConst 1) (AConst 2)) (REq (AConst 1) (AConst 2)))
+           emptyState
+        `shouldBe` False
+
+    it "eval (BAnd True True) == True" $
+      eval (BAnd (RLt (AConst 1) (AConst 2)) (BNot (REq (AConst 1) (AConst 2))))
+           emptyState
+        `shouldBe` True
+
 execSpec :: Spec
-execSpec = 
-  describe "exec" $ do 
+execSpec =
+  describe "exec" $ do
     it "exec CSkip emptyState == emptyState" $
       exec CSkip emptyState `shouldBe` emptyState
-    it "M.toList (exec (CAssign \"a\" (AConst 2) emptyState) == [(\"a\",2)]" $
+
+    it "M.toList (exec (CAssign \"a\" (AConst 2)) emptyState) == [(\"a\",2)]" $
       M.toList (exec (CAssign "a" (AConst 2)) emptyState) `shouldBe` [("a",2)]
 
+    it "CAssign überschreibt eine bestehende Variable" $
+      M.lookup "a" (exec (CAssign "a" (AConst 9)) (M.fromList [("a", 1)]))
+        `shouldBe` Just 9
+
+    it "CAssign liest den alten Zustand: x := x + 1" $
+      M.lookup "x" (exec (CAssign "x" (APlus (AVar "x") (AConst 1)))
+                         (M.fromList [("x", 4)]))
+        `shouldBe` Just 5
+
+    it "CSeq [] ändert nichts" $
+      exec (CSeq []) (M.fromList [("a", 1)]) `shouldBe` M.fromList [("a", 1)]
+
+    it "CSeq führt von links nach rechts aus: a := 1; b := a + 1" $
+      let st = exec (CSeq [ CAssign "a" (AConst 1)
+                          , CAssign "b" (APlus (AVar "a") (AConst 1)) ])
+                    emptyState
+      in (M.lookup "a" st, M.lookup "b" st) `shouldBe` (Just 1, Just 2)
+
+    it "CSeq: spätere Zuweisung gewinnt: a := 1; a := 2" $
+      M.lookup "a" (exec (CSeq [ CAssign "a" (AConst 1)
+                               , CAssign "a" (AConst 2) ])
+                         emptyState)
+        `shouldBe` Just 2
+
+    it "CIfThEl nimmt den then-Zweig bei wahrer Bedingung" $
+      M.lookup "r" (exec (CIfThEl (RLt (AConst 1) (AConst 2))
+                                  (CAssign "r" (AConst 10))
+                                  (CAssign "r" (AConst 20)))
+                         emptyState)
+        `shouldBe` Just 10
+
+    it "CIfThEl nimmt den else-Zweig bei falscher Bedingung" $
+      M.lookup "r" (exec (CIfThEl (RLt (AConst 2) (AConst 1))
+                                  (CAssign "r" (AConst 10))
+                                  (CAssign "r" (AConst 20)))
+                         emptyState)
+        `shouldBe` Just 20
+
+    it "CWhile führt den Rumpf nicht aus, wenn die Bedingung falsch ist" $
+      exec (CWhile (RLt (AConst 2) (AConst 1)) (CAssign "a" (AConst 1)))
+           emptyState
+        `shouldBe` emptyState
+
+    it "CWhile zählt hoch: while i < 5 do i := i + 1" $
+      M.lookup "i" (exec (CWhile (RLt (AVar "i") (AConst 5))
+                                 (CAssign "i" (APlus (AVar "i") (AConst 1))))
+                         (M.fromList [("i", 0)]))
+        `shouldBe` Just 5
+
+    it "CWhile summiert 1..4: s == 10" $
+      M.lookup "s" (exec (CSeq
+                     [ CAssign "i" (AConst 1)
+                     , CAssign "s" (AConst 0)
+                     , CWhile (RLt (AVar "i") (AConst 5)) (CSeq
+                         [ CAssign "s" (APlus (AVar "s") (AVar "i"))
+                         , CAssign "i" (APlus (AVar "i") (AConst 1))
+                         ])
+                     ])
+                     emptyState)
+        `shouldBe` Just 10
 
 
 {-

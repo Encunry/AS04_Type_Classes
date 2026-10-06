@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-} -- to shut langserver up
 module TypeClasses.Nat where
 
 todo :: a
@@ -55,37 +56,40 @@ mul (S m) n = add n (mul m n)
 -- Conversion
 -- Negative inputs map to Z
 integerToNat :: Integer -> Nat
-integerToNat = todo
+integerToNat int | int <= 0 = Z
+                 | otherwise = S (integerToNat (int - 1))
 
 -- Conversion
 natToInteger :: Nat -> Integer
-natToInteger = todo
+natToInteger Z = 0
+natToInteger (S n) = 1 + natToInteger n
 
 -- Num instance allows to use common arithmetic operations when writing expressions of type Nat.
 instance Num Nat where
   (+) :: Nat -> Nat -> Nat
-  (+) = todo
+  (+) a b = add a b 
 
   (*) :: Nat -> Nat -> Nat
-  (*) = todo
+  (*) a b = mul a b
 
   (-) :: Nat -> Nat -> Nat
-  (-) = todo
+  (-) a b = sub a b
 
   -- Returns the argument unchanged
   negate :: Nat -> Nat
-  negate = todo
+  negate a = a
 
   -- Returns the argument unchanged
   abs :: Nat -> Nat
-  abs = todo
+  abs a = a
 
   -- Returns Z if arg is zero and one (S Z) if argument is positive.
   signum :: Nat -> Nat
-  signum = todo
+  signum Z = Z
+  signum (S _ ) = S Z 
 
   fromInteger :: Integer -> Nat
-  fromInteger = todo
+  fromInteger a = integerToNat a
 
 
 main :: IO ()
